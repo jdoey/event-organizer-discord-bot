@@ -29,7 +29,7 @@ A Discord bot that assists users in a discord in organizing and planning events
 
      -edits the embedded message with the details in the arguments.
   
-**events**
+**events:**
 
  **on_reaction_add**
   
