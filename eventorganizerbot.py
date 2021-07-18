@@ -2,6 +2,7 @@ import discord
 import asyncio
 import string
 import random
+import datetime
 from discord.ext import commands
 
 intents = discord.Intents.all()
@@ -32,17 +33,23 @@ async def addevent(ctx):
 
     # prompts the user who called the command
     try:
-        await ctx.send('Enter name of event:')
+        await ctx.send('Enter name of event:', delete_after=30)
         eventName = await bot.wait_for("message", check=check, timeout=15)
         eventName = eventName.content
-        await ctx.send('Enter date of event in format MM/DD/YYYY:')
+        await ctx.send('Enter date of event in format MM/DD/YYYY:', delete_after=30)
         eventDate = await bot.wait_for("message", check=check, timeout=15)
         eventDate = eventDate.content
-        await ctx.send("Enter time of event in format XX:XX AM/PM")
+        datetime.datetime.strptime(eventDate, "%m/%d/%Y")
+        await ctx.send("Enter time of event in format XX:XX AM/PM:", delete_after=30)
         eventTime = await bot.wait_for("message", check=check, timeout=15)
         eventTime = eventTime.content
+        datetime.datetime.strptime(eventTime, "%I:%M %p")
     except asyncio.TimeoutError:
-        await ctx.send("Sorry, you didn't reply within 15 seconds!")
+        await ctx.send("Sorry, you didn't reply within 15 seconds!", delete_after=4)
+        return
+    except ValueError as err:
+        await ctx.send("Incorrect format, redo the command", delete_after=10)
+        return
 
     # creates the embed
     embed = discord.Embed(
@@ -130,12 +137,16 @@ async def changeevent(ctx, eventName: str, eventDate: str, eventTime: str, ID: s
 async def on_reaction_add(reaction, user):
     # allows only specific reactions, unauthorized reactions will be deleted
     allowed_emojis = ["✅", "❌"]
+    if user.id != bot.user.id and reaction.emoji not in allowed_emojis:
+        await reaction.remove(user)
+
     msg = reaction.message
     # iterates through each reaction in message
     for reacts in msg.reactions:
         # checks if user is a bot and if the user reacted to two different emojis
         if user in await reacts.users().flatten() and user.id != bot.user.id and str(reacts) != str(reaction.emoji):
             await msg.remove_reaction(reacts.emoji, user)
+
     msgID = reaction.message.id
     # checks if the message has already been added to the dictionary
     if not msgID in watched_messages:
@@ -167,6 +178,7 @@ async def on_reaction_remove(reaction, user):
     role = discord.utils.get(reaction.message.guild.roles, id=watched_messages[msgID]["✅"])
     # removes the role from the user
     await member.remove_roles(role)
+
 
 @bot.listen('on_message')
 async def anti_spam(message):
