@@ -27,11 +27,11 @@ A Discord bot that assists users in a discord in organizing and planning events
 **;changeevent("new event name", new_event_date, new_event_time, unique_5_character_embedded_message_code)**
 
 
-
      -edits the embedded message with the details in the arguments.
   
 **events**
-  **on_reaction_add**
+
+ **on_reaction_add**
   
   
     -assigns the user that reacts with a checkmark to the message with a role that corresponds to the event
