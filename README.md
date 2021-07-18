@@ -19,12 +19,12 @@ Assists users in a discord in organizing and planning events
     -the command will create and send an embedded message with the details above in a specified channel.
     -it will also create a corresponding text channel and role.
     
-**;deleteevent(unique_5_character_embedded_message_code, "name of the event")**
+**;deleteevent(unique_5_character_embedded_message_code, "event name")**
   
   
      -deletes the specified event message as well as its corresponding text channel and role.
   
-**;changeevent("name of the event", date_of_event, time_of_event, unique_5_character_embedded_message_code)**
+**;changeevent("new event name", new_event_date, new_event_time, unique_5_character_embedded_message_code)**
 
 
 
