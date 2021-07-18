@@ -35,6 +35,7 @@ A Discord bot that assists users in a discord in organizing and planning events
   
   
     -assigns the user that reacts with a checkmark to the message with a role that corresponds to the event
+    -prevents the user from reacting to more than one emoji in a given message
     
  **on_reaction_remove**
  
