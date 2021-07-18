@@ -6,7 +6,7 @@ from discord.ext import commands
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=';', intents=intents)
-bot_token = 'ODY1OTQ0ODc1NTMxMTA4Mzc2.YPLYAg.Hp0vF0FDeghxL4wRJeRJz6lNgDs'
+bot_token = 'ODY1OTQ0ODc1NTMxMTA4Mzc2.YPLYAg.QUKWaIYC-yQbUyE6cJg7BsfJ53o'
 
 # channel to send the embedded messages
 events_channel_id = 865164812438732800
@@ -25,7 +25,7 @@ async def on_ready():
     channel = bot.get_channel(events_channel_id)
 
 
-@bot.command()
+@bot.command(name="addevent", description="creates an event message and sends it to the events channel")
 async def addevent(ctx):
     def check(msg):
         return msg.author == ctx.author and msg.channel == ctx.channel
@@ -78,8 +78,8 @@ async def addevent(ctx):
     txtchannel = await guild.create_text_channel(eventName + " planning", overwrites=overwrites)
 
 
-@bot.command()
-async def deleteevent(ctx, ID: str, eventToDelete: str):
+@bot.command(name="deleteevent", description="deletes the specified event \n command is called by passing the name of the event and the unique 5-character code located in the specified embedded message \n\n ex: ;deleteevent \"event_name\" 5_char_code")
+async def deleteevent(ctx, eventToDelete: str, ID: str):
     channel = bot.get_channel(events_channel_id)
     allmessages = await channel.history(limit=200).flatten()
     # locates the message to delete
@@ -88,7 +88,7 @@ async def deleteevent(ctx, ID: str, eventToDelete: str):
             await msg.delete()
 
     # deletes the text channel of the event
-    existing_channel = discord.utils.get(ctx.guild.channels, name=eventToDelete + " planning")
+    existing_channel = discord.utils.get(ctx.guild.channels, name=eventToDelete + "-planning")
     if existing_channel is not None:
         await existing_channel.delete()
     # deletes the role of the event
@@ -97,13 +97,17 @@ async def deleteevent(ctx, ID: str, eventToDelete: str):
         await existing_role.delete()
 
 
-@bot.command()
+@bot.command(name="changeevent", description="changes the details of the specified event \n command is called by passing the event name, event date, event time, and the unique 5-character code located in the specified embedded message \n\n ex: ;changeevent \"event_name\" event_date event_time 5_char_code")
 async def changeevent(ctx, eventName: str, eventDate: str, eventTime: str, ID: str):
     channel = bot.get_channel(events_channel_id)
     allmessages = await channel.history(limit=200).flatten()
-
+    msgID = None
+    # looks through the messages in the specified channel and looks for the message that has the
+    # desired ID
     for msg in allmessages:
         if msg.content == ID and msg.author == bot.user:
+            msgID = msg.id
+            # edits the contents of the embedded message
             edit_embed = discord.Embed(
                 description=eventName,
                 color=0x5CDBF0
@@ -112,6 +116,14 @@ async def changeevent(ctx, eventName: str, eventDate: str, eventTime: str, ID: s
             edit_embed.add_field(name='Time: ', value=eventTime)
             edit_embed.set_footer(text="✅ if going || ❌ if not going")
             await msg.edit(embed=edit_embed)
+
+    # renames the role to correspond with the new event name
+    existing_role = discord.utils.get(ctx.guild.roles, id=watched_messages[msgID]["✅"])
+    role_name = existing_role.name
+    await existing_role.edit(name=eventName)
+    # renames the text channel to correspond with the new event name
+    existing_channel = discord.utils.get(ctx.guild.channels, name=role_name + "-planning")
+    await existing_channel.edit(name=eventName)
 
 
 @bot.event
