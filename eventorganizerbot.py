@@ -10,7 +10,7 @@ bot = commands.Bot(command_prefix=';', intents=intents)
 bot_token = ''
 
 # channel to send the embedded messages
-events_channel_id = ''
+events_channel_id = None
 
 messageID = None
 watched_messages = {
@@ -95,7 +95,8 @@ async def deleteevent(ctx, eventToDelete: str, ID: str):
             await msg.delete()
 
     # deletes the text channel of the event
-    existing_channel = discord.utils.get(ctx.guild.channels, name=eventToDelete + "-planning")
+    eventToDelete_channel = eventToDelete.replace(" ", "-")
+    existing_channel = discord.utils.get(ctx.guild.channels, name=eventToDelete_channel + "-planning")
     if existing_channel is not None:
         await existing_channel.delete()
     # deletes the role of the event
@@ -129,6 +130,7 @@ async def changeevent(ctx, eventName: str, eventDate: str, eventTime: str, ID: s
     role_name = existing_role.name
     await existing_role.edit(name=eventName)
     # renames the text channel to correspond with the new event name
+    role_name = role_name.replace(" ", "-")
     existing_channel = discord.utils.get(ctx.guild.channels, name=role_name + "-planning")
     await existing_channel.edit(name=eventName)
 
