@@ -130,8 +130,12 @@ async def changeevent(ctx, eventName: str, eventDate: str, eventTime: str, ID: s
 async def on_reaction_add(reaction, user):
     # allows only specific reactions, unauthorized reactions will be deleted
     allowed_emojis = ["✅", "❌"]
-    if user.id != bot.user.id and reaction.emoji not in allowed_emojis:
-        await reaction.remove(user)
+    msg = reaction.message
+    # iterates through each reaction in message
+    for reacts in msg.reactions:
+        # checks if user is a bot and if the user reacted to two different emojis
+        if user in await reacts.users().flatten() and user.id != bot.user.id and str(reacts) != str(reaction.emoji):
+            await msg.remove_reaction(reacts.emoji, user)
     msgID = reaction.message.id
     # checks if the message has already been added to the dictionary
     if not msgID in watched_messages:
@@ -144,7 +148,7 @@ async def on_reaction_add(reaction, user):
     member = discord.utils.get(reaction.message.guild.members, id=user.id)
     # gets the role assigned to the message
     role = discord.utils.get(reaction.message.guild.roles, id=watched_messages[msgID]["✅"])
-    # removes the role from the user
+    # gives the user the corresponding role
     await member.add_roles(role)
 
 
