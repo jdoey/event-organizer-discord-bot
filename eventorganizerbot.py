@@ -6,10 +6,10 @@ from discord.ext import commands
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=';', intents=intents)
-bot_token = 'ODY1OTQ0ODc1NTMxMTA4Mzc2.YPLYAg.9OmXCl2Lxpx7mh4NKdyAQ7HVTJA'
+bot_token = ''
 
 # channel to send the embedded messages
-events_channel_id = 865164812438732800
+events_channel_id = ''
 
 messageID = None
 watched_messages = {
