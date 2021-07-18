@@ -30,5 +30,17 @@ A Discord bot that assists users in a discord in organizing and planning events
 
      -edits the embedded message with the details in the arguments.
   
+**events**
+  **on_reaction_add**
   
+  
+    -assigns the user that reacts with a checkmark to the message with a role that corresponds to the event
+    
+ **on_reaction_remove**
+ 
+    -removes the corresponding role from the user when the checkmark reaction is removed
+    
+ **anti_spam**
+    
+    -automatically removes messages from the events channel that are not sent by the bot
   
