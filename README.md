@@ -1,4 +1,4 @@
-# event-organizor-discord-bot
+# event-organizer-discord-bot
 A Discord bot that assists users in a discord in organizing and planning events
 
 
