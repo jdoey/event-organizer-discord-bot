@@ -16,10 +16,15 @@ assists users in a discord organize events/plans
     -it will also create a corresponding text channel and role.
     
 **;deleteevent(unique_5_character_embedded_message_code, "name of the event")**
-  -deletes the specified event message as well as its corresponding text channel and role.
+  
+  
+     -deletes the specified event message as well as its corresponding text channel and role.
   
 **;changeevent("name of the event", date_of_event, time_of_event, unique_5_character_embedded_message_code)**
-  -edits the embedded message with the details in the arguments.
+
+
+
+     -edits the embedded message with the details in the arguments.
   
   
   
