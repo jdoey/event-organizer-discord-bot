@@ -15,7 +15,8 @@ events_channel_id = None
 messageID = None
 watched_messages = {
     messageID: {
-        "✅": {}
+        "✅": {},
+        "❔": {}
     }
 }
 
@@ -58,7 +59,7 @@ async def addevent(ctx):
     )
     embed.add_field(name='Date: ', value=eventDate)
     embed.add_field(name='Time: ', value=eventTime)
-    embed.set_footer(text="✅ if going || ❌ if not going")
+    embed.set_footer(text="✅ if going || ❓ if unsure || ❌ if not going")
 
     # sends the embedded message in specified text channel
     channel = bot.get_channel(events_channel_id)
@@ -74,6 +75,7 @@ async def addevent(ctx):
 
     # adds reactions to the embedded message
     await msg.add_reaction(emoji="✅")
+    await msg.add_reaction(emoji="❔")
     await msg.add_reaction(emoji="❌")
 
     # creates the planning text channel and permissions
@@ -122,7 +124,7 @@ async def changeevent(ctx, eventName: str, eventDate: str, eventTime: str, ID: s
             )
             edit_embed.add_field(name='Date: ', value=eventDate)
             edit_embed.add_field(name='Time: ', value=eventTime)
-            edit_embed.set_footer(text="✅ if going || ❌ if not going")
+            edit_embed.set_footer(text="✅ if going || ❔ if unsure || ❌ if not going")
             await msg.edit(embed=edit_embed)
 
     # renames the role to correspond with the new event name
@@ -138,7 +140,7 @@ async def changeevent(ctx, eventName: str, eventDate: str, eventTime: str, ID: s
 @bot.event
 async def on_reaction_add(reaction, user):
     # allows only specific reactions, unauthorized reactions will be deleted
-    allowed_emojis = ["✅", "❌"]
+    allowed_emojis = ["✅", "❌", "❔"]
     if user.id != bot.user.id and reaction.emoji not in allowed_emojis:
         await reaction.remove(user)
 
@@ -152,12 +154,12 @@ async def on_reaction_add(reaction, user):
     msgID = reaction.message.id
     # checks if the message has already been added to the dictionary
     if not msgID in watched_messages:
-        watched_messages[msgID] = {"✅": roleID}
+        watched_messages[msgID] = {"✅": roleID,
+                                   "❔": roleID}
     # checks if the user reacted with the desired emoji to be assigned the role
     if not reaction.emoji in watched_messages[msgID]:
         return
-
-    # gets the user that reacted with a check mark on the message
+    # gets the user that reacted with a check mark or question mark on the message
     member = discord.utils.get(reaction.message.guild.members, id=user.id)
     # gets the role assigned to the message
     role = discord.utils.get(reaction.message.guild.roles, id=watched_messages[msgID]["✅"])
@@ -190,5 +192,6 @@ async def anti_spam(message):
         # checks if the author of the message sent is the bot, if not the the message is deleted
         if userID is not bot.user.id:
             await message.delete()
+
 
 bot.run(bot_token)
