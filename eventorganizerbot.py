@@ -37,8 +37,7 @@ async def setembedchannel(ctx):
         events_channel_id = await bot.wait_for("message", check=check, timeout=15)
         events_channel_id = events_channel_id.content
         events_channel_id = int(events_channel_id)
-        print(events_channel_id)
-        await ctx.send("Success", delete_after=3)
+        await ctx.send("Success, the bot is now operational", delete_after=3)
     except asyncio.TimeoutError:
         await ctx.send("Sorry, you didn't reply within 15 seconds!", delete_after=4)
     bot.add_cog(start(bot))
@@ -69,6 +68,10 @@ async def addevent(ctx):
         eventTime = await bot.wait_for("message", check=check, timeout=15)
         eventTime = eventTime.content
         datetime.datetime.strptime(eventTime, "%I:%M %p")
+        await ctx.send("Enter the point of contact for the event: ", delete_after=30)
+        point_of_contact = await bot.wait_for("message", check=check, timeout=15)
+        point_of_contact = point_of_contact.content
+
     except asyncio.TimeoutError:
         await ctx.send("Sorry, you didn't reply within 15 seconds!", delete_after=10)
         return
@@ -81,9 +84,10 @@ async def addevent(ctx):
         description=eventName,
         color=0x5CDBF0
     )
-    embed.add_field(name='Date: ', value=eventDate)
-    embed.add_field(name='Time: ', value=eventTime)
-    embed.set_footer(text="✅ if going || ❓ if unsure || ❌ if not going")
+    embed.add_field(name='Date: ', value=eventDate, inline=True)
+    embed.add_field(name='Time: ', value=eventTime, inline=True)
+    embed.add_field(name='Point of Contact: ', value=point_of_contact, inline=False)
+    embed.set_footer(text="✅ if going || ❔ if unsure || ❌ if not going")
 
     # sends the embedded message in specified text channel
     channel = bot.get_channel(events_channel_id)
@@ -116,6 +120,7 @@ async def deleteevent(ctx, eventToDelete: str, ID: str):
     channel = bot.get_channel(events_channel_id)
     allmessages = await channel.history(limit=200).flatten()
     # locates the message to delete
+
     for msg in allmessages:
         if msg.content == ID and msg.author == bot.user:
             await msg.delete()
@@ -129,10 +134,11 @@ async def deleteevent(ctx, eventToDelete: str, ID: str):
     existing_role = discord.utils.get(ctx.guild.roles, name=eventToDelete)
     if existing_role is not None:
         await existing_role.delete()
+    await ctx.send('Event has been successfully deleted')
 
 
 @bot.command(name="changeevent", description="changes the details of the specified event \n command is called by passing the event name, event date, event time, and the unique 5-character code located in the specified embedded message \n\n ex: ;changeevent \"event_name\" event_date event_time 5_char_code")
-async def changeevent(ctx, eventName: str, eventDate: str, eventTime: str, ID: str):
+async def changeevent(ctx, eventName: str, eventDate: str, eventTime: str, point_of_contact: str, ID: str):
     channel = bot.get_channel(events_channel_id)
     allmessages = await channel.history(limit=200).flatten()
     msgID = None
@@ -146,8 +152,9 @@ async def changeevent(ctx, eventName: str, eventDate: str, eventTime: str, ID: s
                 description=eventName,
                 color=0x5CDBF0
             )
-            edit_embed.add_field(name='Date: ', value=eventDate)
-            edit_embed.add_field(name='Time: ', value=eventTime)
+            edit_embed.add_field(name='Date: ', value=eventDate, inline=True)
+            edit_embed.add_field(name='Time: ', value=eventTime, inline=True)
+            edit_embed.add_field(name='Point of Contact: ', value=point_of_contact, inline=False)
             edit_embed.set_footer(text="✅ if going || ❔ if unsure || ❌ if not going")
             await msg.edit(embed=edit_embed)
 
@@ -158,52 +165,63 @@ async def changeevent(ctx, eventName: str, eventDate: str, eventTime: str, ID: s
     # renames the text channel to correspond with the new event name
     role_name = role_name.replace(" ", "-")
     existing_channel = discord.utils.get(ctx.guild.channels, name=role_name + "-planning")
-    await existing_channel.edit(name=eventName)
+    await existing_channel.edit(name=eventName + "-planning")
+    await existing_channel.send('@here \nEvent details have been changed! Refer to the #events channel for updated information!')
 
 
 @bot.event
-async def on_reaction_add(reaction, user):
-    # allows only specific reactions, unauthorized reactions will be deleted
-    allowed_emojis = ["✅", "❌", "❔"]
-    if reaction.message.channel.id == events_channel_id:
-        if user.id != bot.user.id and reaction.emoji not in allowed_emojis:
-            await reaction.remove(user)
-        msg = reaction.message
-        # iterates through each reaction in message
-        for reacts in msg.reactions:
-            # checks if user is a bot and if the user reacted to two different emojis
-            if user in await reacts.users().flatten() and user.id != bot.user.id and str(reacts) != str(reaction.emoji):
-                await msg.remove_reaction(reacts.emoji, user)
+async def on_raw_reaction_add(payload):
+    # allows only specific reactions in the events channel, unauthorized reactions will be deleted
+    message = await bot.get_channel(events_channel_id).fetch_message(payload.message_id)
+    user = payload.member
+    emoji = payload.emoji
+    reaction_string = payload.emoji.name
 
-        msgID = reaction.message.id
+    allowed_emojis = ["✅", "❌", "❔"]
+    if message.channel.id == events_channel_id:
+        if user.id != bot.user.id and reaction_string not in allowed_emojis:
+            await message.remove_reaction(emoji, user)
+
+        # iterates through each reaction in message
+        for reacts in message.reactions:
+            # checks if user is a bot and if the user reacted to two different emojis
+            if user in await reacts.users().flatten() and user.id != bot.user.id and str(reacts) != str(payload.emoji):
+                await message.remove_reaction(reacts.emoji, user)
+
+        msgID = message.id
         # checks if the message has already been added to the dictionary
         if not msgID in watched_messages:
             watched_messages[msgID] = {"✅": roleID,
                                        "❔": roleID}
         # checks if the user reacted with the desired emoji to be assigned the role
-        if not reaction.emoji in watched_messages[msgID]:
+        if not reaction_string in watched_messages[msgID]:
             return
         # gets the user that reacted with a check mark or question mark on the message
-        member = discord.utils.get(reaction.message.guild.members, id=user.id)
+        member = discord.utils.get(message.guild.members, id=user.id)
         # gets the role assigned to the message
-        role = discord.utils.get(reaction.message.guild.roles, id=watched_messages[msgID]["✅"])
+        role = discord.utils.get(message.guild.roles, id=watched_messages[msgID]["✅"])
         # gives the user the corresponding role
         await member.add_roles(role)
 
 
 @bot.event
-async def on_reaction_remove(reaction, user):
-    msgID = reaction.message.id
+async def on_raw_reaction_remove(payload):
+    message = await bot.get_channel(events_channel_id).fetch_message(payload.message_id)
+    msgID = message.id
+    guild = await bot.fetch_guild(payload.guild_id)
+    user = await guild.fetch_member(payload.user_id)
+    reaction_string = payload.emoji.name
+
     if not msgID in watched_messages:
         watched_messages[msgID] = {"✅": roleID}
 
-    if not reaction.emoji in watched_messages[msgID]:
+    if not reaction_string in watched_messages[msgID]:
         return
 
     # gets the user that reacted with a check mark on the message
-    member = discord.utils.get(reaction.message.guild.members, id=user.id)
+    member = discord.utils.get(message.guild.members, id=user.id)
     # gets the role assigned to the message
-    role = discord.utils.get(reaction.message.guild.roles, id=watched_messages[msgID]["✅"])
+    role = discord.utils.get(message.guild.roles, id=watched_messages[msgID]["✅"])
     # removes the role from the user
     await member.remove_roles(role)
 
