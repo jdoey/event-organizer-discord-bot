@@ -12,7 +12,7 @@ A Discord bot that assists users in a discord in organizing and planning events
     
     
     
-    the channel id of the channel they wish to send the embedded message
+    the channel id of the channel they wish to send the embedded message:
     
     -sets the channel in which the embedded messages will be sent by the bot
     
