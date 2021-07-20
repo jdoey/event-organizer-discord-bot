@@ -24,11 +24,35 @@ watched_messages = {
 @bot.event
 async def on_ready():
     print('Bot is online.')
-    channel = bot.get_channel(events_channel_id)
+
+
+@bot.command(name="setembedchannel", description="sets the channel where the embedded messages will be sent\n ;setembedchannel channel_id")
+async def setembedchannel(ctx):
+    def check(msg):
+        return msg.author == ctx.author and msg.channel == ctx.channel
+
+    try:
+        await ctx.send('Enter channel id of channel that you want the embedded messages to be sent', delete_after=15)
+        global events_channel_id
+        events_channel_id = await bot.wait_for("message", check=check, timeout=15)
+        events_channel_id = events_channel_id.content
+        events_channel_id = int(events_channel_id)
+        print(events_channel_id)
+        await ctx.send("Success", delete_after=3)
+    except asyncio.TimeoutError:
+        await ctx.send("Sorry, you didn't reply within 15 seconds!", delete_after=4)
+    bot.add_cog(start(bot))
 
 
 @bot.command(name="addevent", description="creates an event message and sends it to the events channel")
 async def addevent(ctx):
+    # checks if the user has set the event channel
+    try:
+        print(events_channel_id)
+    except NameError:
+        await ctx.send("event channel is not set, use command ;setembedchannel to set the channel you want the embedded messages to be sent")
+        return
+
     def check(msg):
         return msg.author == ctx.author and msg.channel == ctx.channel
 
@@ -46,7 +70,7 @@ async def addevent(ctx):
         eventTime = eventTime.content
         datetime.datetime.strptime(eventTime, "%I:%M %p")
     except asyncio.TimeoutError:
-        await ctx.send("Sorry, you didn't reply within 15 seconds!", delete_after=4)
+        await ctx.send("Sorry, you didn't reply within 15 seconds!", delete_after=10)
         return
     except ValueError as err:
         await ctx.send("Incorrect format, redo the command", delete_after=10)
@@ -141,30 +165,30 @@ async def changeevent(ctx, eventName: str, eventDate: str, eventTime: str, ID: s
 async def on_reaction_add(reaction, user):
     # allows only specific reactions, unauthorized reactions will be deleted
     allowed_emojis = ["✅", "❌", "❔"]
-    if user.id != bot.user.id and reaction.emoji not in allowed_emojis:
-        await reaction.remove(user)
+    if reaction.message.channel.id == events_channel_id:
+        if user.id != bot.user.id and reaction.emoji not in allowed_emojis:
+            await reaction.remove(user)
+        msg = reaction.message
+        # iterates through each reaction in message
+        for reacts in msg.reactions:
+            # checks if user is a bot and if the user reacted to two different emojis
+            if user in await reacts.users().flatten() and user.id != bot.user.id and str(reacts) != str(reaction.emoji):
+                await msg.remove_reaction(reacts.emoji, user)
 
-    msg = reaction.message
-    # iterates through each reaction in message
-    for reacts in msg.reactions:
-        # checks if user is a bot and if the user reacted to two different emojis
-        if user in await reacts.users().flatten() and user.id != bot.user.id and str(reacts) != str(reaction.emoji):
-            await msg.remove_reaction(reacts.emoji, user)
-
-    msgID = reaction.message.id
-    # checks if the message has already been added to the dictionary
-    if not msgID in watched_messages:
-        watched_messages[msgID] = {"✅": roleID,
-                                   "❔": roleID}
-    # checks if the user reacted with the desired emoji to be assigned the role
-    if not reaction.emoji in watched_messages[msgID]:
-        return
-    # gets the user that reacted with a check mark or question mark on the message
-    member = discord.utils.get(reaction.message.guild.members, id=user.id)
-    # gets the role assigned to the message
-    role = discord.utils.get(reaction.message.guild.roles, id=watched_messages[msgID]["✅"])
-    # gives the user the corresponding role
-    await member.add_roles(role)
+        msgID = reaction.message.id
+        # checks if the message has already been added to the dictionary
+        if not msgID in watched_messages:
+            watched_messages[msgID] = {"✅": roleID,
+                                       "❔": roleID}
+        # checks if the user reacted with the desired emoji to be assigned the role
+        if not reaction.emoji in watched_messages[msgID]:
+            return
+        # gets the user that reacted with a check mark or question mark on the message
+        member = discord.utils.get(reaction.message.guild.members, id=user.id)
+        # gets the role assigned to the message
+        role = discord.utils.get(reaction.message.guild.roles, id=watched_messages[msgID]["✅"])
+        # gives the user the corresponding role
+        await member.add_roles(role)
 
 
 @bot.event
@@ -184,14 +208,17 @@ async def on_reaction_remove(reaction, user):
     await member.remove_roles(role)
 
 
-@bot.listen('on_message')
-async def anti_spam(message):
-    # checks if the message sent is in the events channel
-    if message.channel.id == events_channel_id:
-        userID = message.author.id
-        # checks if the author of the message sent is the bot, if not the the message is deleted
-        if userID is not bot.user.id:
-            await message.delete()
+class start(commands.Cog):
+
+    @commands.Cog.listener('on_message')
+    async def anti_spam(self, message):
+        # checks if the message sent is in the events channel
+        if message.channel.id == events_channel_id:
+            userID = message.author.id
+            # checks if the author of the message sent is the bot, if not the the message is deleted
+            if userID is not bot.user.id:
+                await message.delete()
+
 
 
 bot.run(bot_token)
