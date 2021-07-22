@@ -31,7 +31,7 @@ A Discord bot that assists users in a discord in organizing and planning events.
     -it will also create a corresponding text channel and role.
     -the message ID, role ID, and text channel ID of the event will be stored into a MongoDB database
     
-**;deleteevent(unique_5_character_embedded_message_code, "event name")**
+**;deleteevent("event name", unique_5_character_embedded_message_code)**
   
   
      -deletes the specified event message as well as its corresponding text channel and role.
