@@ -1,6 +1,9 @@
 # event-organizer-discord-bot
 A Discord bot that assists users in a discord in organizing and planning events. Once an event is added, the bot will send an embedded message with the name, date, time, and point of contact of the event. The bot will also add reactions to the embedded messages so that users in the discord can react to the message to show whether or not they can attend the event. The bot will also create a dedicated text channel and role just for the event to make planning easier. Should the event details change, the user can update the details of the event by simply calling the ;changeevent command and inputting what they wish to change. If minds change, users can delete any event by calling the ;deleteevent command and inputting the event name and the event ID that is located in the contents of the embedded message. This bot utilizes a MongoDB database to store the embedded message IDs which also contains the role ID and text channel ID that is linked to the embedded message. Users who react with a ✅ or ❔ are automatically given a role that corresponds with the event and are thus given access to the text channel created for the event.
 
+Created using: Python and MongoDB
+Deployed using: Repl.it and UptimeRobot
+
 ![image](https://user-images.githubusercontent.com/70018021/126856649-a446e761-2b6d-4e3f-b03f-59768053096a.png)
 
 
