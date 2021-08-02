@@ -3,6 +3,7 @@ import asyncio
 import string
 import random
 import datetime
+import time
 import json
 import pymongo
 from pymongo import MongoClient
@@ -25,7 +26,7 @@ async def on_ready():
     events_channel_id = None
 
     print('Bot is online.')
-
+    
     with open("eventschannelid.json", "r") as fp:
         try:
             events_channel_id = json.load(fp)
@@ -79,18 +80,22 @@ async def addevent(ctx):
         await ctx.send('Enter name of event:', delete_after=30)
         eventName = await bot.wait_for("message", check=check, timeout=15)
         eventName = eventName.content
-        await ctx.send('Enter date of event in format MM/DD/YYYY:', delete_after=30)
+        await ctx.send('Enter description of event:', delete_after=30)
+        eventDesc = await bot.wait_for("message", check=check, timeout=15)
+        eventDesc = eventDesc.content
+        await ctx.send('Enter date of event in format MM/DD/YYYY or TBD:', delete_after=30)
         eventDate = await bot.wait_for("message", check=check, timeout=15)
         eventDate = eventDate.content
-        datetime.datetime.strptime(eventDate, "%m/%d/%Y")
-        await ctx.send("Enter time of event in format XX:XX AM/PM:", delete_after=30)
+        if (eventDate != 'TBD'):
+            datetime.datetime.strptime(eventDate, "%m/%d/%Y")
+        await ctx.send("Enter time of event in format XX:XX AM/PM or TBD:", delete_after=30)
         eventTime = await bot.wait_for("message", check=check, timeout=15)
         eventTime = eventTime.content
-        datetime.datetime.strptime(eventTime, "%I:%M %p")
+        if (eventTime != 'TBD'):
+            datetime.datetime.strptime(eventTime, "%I:%M %p")
         await ctx.send("Enter the point of contact for the event: ", delete_after=30)
         point_of_contact = await bot.wait_for("message", check=check, timeout=15)
         point_of_contact = point_of_contact.content
-
     except asyncio.TimeoutError:
         await ctx.send("Sorry, you didn't reply within 15 seconds!", delete_after=10)
         return
@@ -100,24 +105,24 @@ async def addevent(ctx):
 
     # creates the embed
     embed = discord.Embed(
-        description=eventName,
+        title=eventName,
+        description=eventDesc,
         color=0x5CDBF0
     )
     embed.add_field(name='Date: ', value=eventDate, inline=True)
     embed.add_field(name='Time: ', value=eventTime, inline=True)
     embed.add_field(name='Point of Contact: ', value=point_of_contact, inline=False)
-    embed.set_footer(text="✅ if going || ❔ if unsure || ❌ if not going")
+    embed.set_footer(text=''.join(random.choices(string.ascii_uppercase + string.digits, k=5)))
 
     # sends the embedded message in specified text channel
     channel = bot.get_channel(events_channel_id)
-    msg = await channel.send(''.join(random.choices(string.ascii_uppercase + string.digits, k=5)), embed=embed)
+    msg = await channel.send("@here", embed=embed)
 
     guild = ctx.message.guild
 
     # creates the role and permissions
     permissions = discord.Permissions(permissions=0x40)
     role = await guild.create_role(name=eventName, permissions=permissions, mentionable=True)
-
 
     # creates the planning text channel and permissions
     overwrites = {
@@ -126,8 +131,6 @@ async def addevent(ctx):
         role: discord.PermissionOverwrite(read_messages=True)
     }
     txtchannel = await guild.create_text_channel(eventName + " planning", overwrites=overwrites)
-
-
 
     # stores the message ID and role ID to a database
     data_entry = {"_id": msg.id, "roleID": role.id, "txtchannelID": txtchannel.id}
@@ -140,71 +143,413 @@ async def addevent(ctx):
     await msg.add_reaction(emoji="❌")
 
 
-@bot.command(name="deleteevent", description="deletes the specified event \n command is called by passing the name of "
-                                             "the event and the unique 5-character code located in the specified "
-                                             "embedded message \n\n ex: ;deleteevent \"event_name\" 5_char_code")
-async def deleteevent(ctx, eventToDelete: str, ID: str):
+@bot.command(name="deleteevent", description="deletes the specified event \n command is called by passing the unique 5-character code located in the specified "
+                                             "embedded message \n\n ex: ;deleteevent 5_char_code")
+async def deleteevent(ctx, ID: str):
     channel = bot.get_channel(events_channel_id)
     allmessages = await channel.history(limit=200).flatten()
-    # locates the message and deletes it
+    # locates the message, role, and text channel and deletes them
     for msg in allmessages:
-        if msg.content == ID and msg.author == bot.user:
+        embeds = msg.embeds
+        embed = embeds[0]
+        if embed.footer.text == ID and msg.author == bot.user:
             query = {"_id": msg.id}
+            msg_data = collection.find(query)
+            for data in msg_data:
+                role_id = data["roleID"]
+                txtchannel_id = data["txtchannelID"]
+                existing_channel = discord.utils.get(ctx.guild.channels, id=txtchannel_id)
+                existing_role = discord.utils.get(ctx.guild.roles, id=role_id)
+                if existing_channel is not None:
+                    await existing_channel.delete()
+                if existing_role is not None:
+                    await existing_role.delete()
             collection.delete_one(query)
             await msg.delete()
 
-    # deletes the text channel of the event
-    eventToDelete_channel = eventToDelete.replace(" ", "-")
-    lowercase_channel = eventToDelete_channel.lower()
-    existing_channel = discord.utils.get(ctx.guild.channels, name=lowercase_channel + "-planning")
-    if existing_channel is not None:
-        await existing_channel.delete()
-    # deletes the role of the event
-    existing_role = discord.utils.get(ctx.guild.roles, name=eventToDelete)
-    if existing_role is not None:
-        await existing_role.delete()
-    await ctx.send('Event has been successfully deleted')
+    await ctx.send('Event has been successfully deleted', delete_after=20)
 
 
-@bot.command(name="changeevent", description="changes the details of the specified event \n command is called by "
-                                             "passing the event name, event date, event time, and the unique "
-                                             "5-character code located in the specified embedded message \n\n ex: "
-                                             ";changeevent \"event_name\" event_date event_time 5_char_code")
-async def changeevent(ctx, eventName: str, eventDate: str, eventTime: str, point_of_contact: str, ID: str):
+@bot.command(name="changeevent", description="changes the name of the event \n command is called by passing the unique 5-character code located in the specified "
+                                             "embedded message \n\n ex: ;changeevent 5_char_code")
+async def changeevent(ctx, ID: str):
     channel = bot.get_channel(events_channel_id)
     allmessages = await channel.history(limit=200).flatten()
-    msgID = None
+
+    def check(msg):
+        return msg.author == ctx.author and msg.channel == ctx.channel
+
     # looks through the messages in the specified channel and looks for the message that has the
     # desired ID
     for msg in allmessages:
-        if msg.content == ID and msg.author == bot.user:
+        embeds = msg.embeds
+        if len(embeds) != 0:
+            embed = embeds[0]
+            footer = embed.footer.text
+        if footer == ID and msg.author == bot.user:
             msgID = msg.id
-            # edits the contents of the embedded message
-            edit_embed = discord.Embed(
-                description=eventName,
-                color=0x5CDBF0
-            )
-            edit_embed.add_field(name='Date: ', value=eventDate, inline=True)
-            edit_embed.add_field(name='Time: ', value=eventTime, inline=True)
-            edit_embed.add_field(name='Point of Contact: ', value=point_of_contact, inline=False)
-            edit_embed.set_footer(text="✅ if going || ❔ if unsure || ❌ if not going")
-            await msg.edit(embed=edit_embed)
+            eventName = embed.title
+            eventDesc = embed.description
+            query = {"_id": msgID}
+            msg_data = collection.find(query)
 
-    # locates the data entry with the given msgID and finds the role_id that corresponds with the msg
-    query = {"_id": msgID}
-    msg_data = collection.find(query)
-    for data in msg_data:
-        role_id = data["roleID"]
-    # renames the role to correspond with the new event name
-    existing_role = discord.utils.get(ctx.guild.roles, id=role_id)
-    role_name = existing_role.name
+            # looks for desired data in the database
+            for data in msg_data:
+                role_id = data["roleID"]
+                txtchannel_id = data["txtchannelID"]
+                existing_channel = discord.utils.get(ctx.guild.channels, id=txtchannel_id)
+                existing_role = discord.utils.get(ctx.guild.roles, id=role_id)
+
+            # gets the values from the desired fields
+            for field in embed.fields:
+                if field.name.lower() == "date:":
+                    eventDate = field.value
+                if field.name.lower() == "time:":
+                    eventTime = field.value
+                if field.name.lower() == "point of contact:":
+                    eventpoc = field.value
+            break
+
+    # prompts the user who called the command
+    try:
+        await ctx.send('Enter new name of event:', delete_after=30)
+        eventName = await bot.wait_for("message", check=check, timeout=15)
+        eventName = eventName.content
+    except asyncio.TimeoutError:
+        await ctx.send("Sorry, you didn't reply within 15 seconds!", delete_after=10)
+        return
+
+    # edits the contents of the embedded message
+    edit_embed = discord.Embed(
+        title=eventName,
+        description=eventDesc,
+        color=0x5CDBF0
+    )
+    edit_embed.add_field(name='Date: ', value=eventDate, inline=True)
+    edit_embed.add_field(name='Time: ', value=eventTime, inline=True)
+    edit_embed.add_field(name='Point of Contact: ', value=eventpoc, inline=False)
+    edit_embed.set_footer(text=ID)
+    await msg.edit(embed=edit_embed)
+
+    # renames text channel and roles to correspond with the event name change
     await existing_role.edit(name=eventName)
-    # renames the text channel to correspond with the new event name
-    role_name = role_name.replace(" ", "-")
-    existing_channel = discord.utils.get(ctx.guild.channels, name=role_name + "-planning")
-    await existing_channel.edit(name=eventName + "-planning")
-    await existing_channel.send(existing_role.mention + '\nEvent details have been changed! Refer to the #events channel for '
-                                               'updated information!')
+    await existing_channel.edit(name=eventName + '-planning')
+
+    time.sleep(1)
+    await existing_channel.send(
+        existing_role.mention + '\nEvent name have been changed!', embed=edit_embed)
+    await ctx.send('Event name has been successfully changed', delete_after=20)
+
+@bot.command(name="changedesc", description="changes the description of the event \n command is called by passing the unique 5-character code located in the specified "
+                                             "embedded message \n\n ex: ;changedesc 5_char_code")
+async def changedesc(ctx, ID: str):
+    channel = bot.get_channel(events_channel_id)
+    allmessages = await channel.history(limit=200).flatten()
+
+    def check(msg):
+        return msg.author == ctx.author and msg.channel == ctx.channel
+
+    # looks through the messages in the specified channel and looks for the message that has the
+    # desired ID
+    for msg in allmessages:
+        embeds = msg.embeds
+        if len(embeds) != 0:
+            embed = embeds[0]
+            footer = embed.footer.text
+        if footer == ID and msg.author == bot.user:
+            msgID = msg.id
+            eventName = embed.title
+            eventDesc = embed.description
+            query = {"_id": msgID}
+            msg_data = collection.find(query)
+
+            # looks for desired data in the database
+            for data in msg_data:
+                role_id = data["roleID"]
+                txtchannel_id = data["txtchannelID"]
+                existing_channel = discord.utils.get(ctx.guild.channels, id=txtchannel_id)
+                existing_role = discord.utils.get(ctx.guild.roles, id=role_id)
+
+            # gets the values from the desired fields
+            for field in embed.fields:
+                if field.name.lower() == "date:":
+                    eventDate = field.value
+                if field.name.lower() == "time:":
+                    eventTime = field.value
+                if field.name.lower() == "point of contact:":
+                    eventpoc = field.value
+            break
+
+    # prompts the user who called the command
+    try:
+        await ctx.send('Enter new description of event:', delete_after=30)
+        eventDesc = await bot.wait_for("message", check=check, timeout=15)
+        eventDesc = eventDesc.content
+    except asyncio.TimeoutError:
+        await ctx.send("Sorry, you didn't reply within 15 seconds!", delete_after=10)
+        return
+
+    # edits the contents of the embedded message
+    edit_embed = discord.Embed(
+        title=eventName,
+        description=eventDesc,
+        color=0x5CDBF0
+    )
+    edit_embed.add_field(name='Date: ', value=eventDate, inline=True)
+    edit_embed.add_field(name='Time: ', value=eventTime, inline=True)
+    edit_embed.add_field(name='Point of Contact: ', value=eventpoc, inline=False)
+    edit_embed.set_footer(text=ID)
+    await msg.edit(embed=edit_embed)
+
+    time.sleep(1)
+    await existing_channel.send(
+        existing_role.mention + '\nEvent description have been changed!', embed=edit_embed)
+    await ctx.send('Event description has been successfully changed', delete_after=20)
+
+
+@bot.command(name="changedate", description="changes the date of the event \n command is called by passing the unique 5-character code located in the specified "
+                                             "embedded message \n\n ex: ;changedate 5_char_code")
+async def changedate(ctx, ID: str):
+    channel = bot.get_channel(events_channel_id)
+    allmessages = await channel.history(limit=200).flatten()
+
+    def check(msg):
+        return msg.author == ctx.author and msg.channel == ctx.channel
+
+    # looks through the messages in the specified channel and looks for the message that has the
+    # desired ID
+    for msg in allmessages:
+        embeds = msg.embeds
+        if len(embeds) != 0:
+            embed = embeds[0]
+            footer = embed.footer.text
+        if footer == ID and msg.author == bot.user:
+            msgID = msg.id
+            eventName = embed.title
+            eventDesc = embed.description
+            query = {"_id": msgID}
+            msg_data = collection.find(query)
+
+            # looks for desired data in the database
+            for data in msg_data:
+                role_id = data["roleID"]
+                txtchannel_id = data["txtchannelID"]
+                existing_channel = discord.utils.get(ctx.guild.channels, id=txtchannel_id)
+                existing_role = discord.utils.get(ctx.guild.roles, id=role_id)
+
+            # gets the values from the desired fields
+            for field in embed.fields:
+                field_name = field.name.lower()
+                if field_name == "date:":
+                    eventDate = field.value
+                if field_name == "time:":
+                    eventTime = field.value
+                if field_name == "point of contact:":
+                    eventpoc = field.value
+            break
+
+    # prompts the user who called the command
+    try:
+        await ctx.send('Enter new date of event in format MM/DD/YYYY or TBD:', delete_after=30)
+        eventDate = await bot.wait_for("message", check=check, timeout=15)
+        eventDate = eventDate.content
+        if (eventDate != 'TBD'):
+            datetime.datetime.strptime(eventDate, "%m/%d/%Y")
+    except asyncio.TimeoutError:
+        await ctx.send("Sorry, you didn't reply within 15 seconds!", delete_after=10)
+        return
+    except ValueError as err:
+        await ctx.send("Incorrect format, redo the command", delete_after=10)
+        return
+
+    # edits the contents of the embedded message
+    edit_embed = discord.Embed(
+        title=eventName,
+        description=eventDesc,
+        color=0x5CDBF0
+    )
+    edit_embed.add_field(name='Date: ', value=eventDate, inline=True)
+    edit_embed.add_field(name='Time: ', value=eventTime, inline=True)
+    edit_embed.add_field(name='Point of Contact: ', value=eventpoc, inline=False)
+    edit_embed.set_footer(text=ID)
+    await msg.edit(embed=edit_embed)
+
+    time.sleep(1)
+    await existing_channel.send(
+        existing_role.mention + '\nEvent date have been changed!', embed=edit_embed)
+    await ctx.send('Event date has been successfully changed', delete_after=20)
+
+
+@bot.command(name="changetime", description="changes the time of the event \n command is called by passing the unique 5-character code located in the specified "
+                                             "embedded message \n\n ex: ;changetime 5_char_code")
+async def changetime(ctx, ID: str):
+    channel = bot.get_channel(events_channel_id)
+    allmessages = await channel.history(limit=200).flatten()
+
+    def check(msg):
+        return msg.author == ctx.author and msg.channel == ctx.channel
+
+    # looks through the messages in the specified channel and looks for the message that has the
+    # desired ID
+    for msg in allmessages:
+        embeds = msg.embeds
+        if len(embeds) != 0:
+            embed = embeds[0]
+            footer = embed.footer.text
+        if footer == ID and msg.author == bot.user:
+            msgID = msg.id
+            eventName = embed.title
+            eventDesc = embed.description
+            query = {"_id": msgID}
+            msg_data = collection.find(query)
+
+            # looks for desired data in the database
+            for data in msg_data:
+                role_id = data["roleID"]
+                txtchannel_id = data["txtchannelID"]
+                existing_channel = discord.utils.get(ctx.guild.channels, id=txtchannel_id)
+                existing_role = discord.utils.get(ctx.guild.roles, id=role_id)
+
+            # gets the values from the desired fields
+            for field in embed.fields:
+                field_name = field.name.lower()
+                if field_name == "date:":
+                    eventDate = field.value
+                if field_name == "time:":
+                    eventTime = field.value
+                if field_name == "point of contact:":
+                    eventpoc = field.value
+            break
+
+    # prompts the user who called the command
+    try:
+        await ctx.send('Enter new time of event in format XX:XX AM/PM or TBD:', delete_after=30)
+        eventTime = await bot.wait_for("message", check=check, timeout=15)
+        eventTime = eventTime.content
+        if (eventTime != 'TBD'):
+            datetime.datetime.strptime(eventTime, "%I:%M %p")
+    except asyncio.TimeoutError:
+        await ctx.send("Sorry, you didn't reply within 15 seconds!", delete_after=10)
+        return
+    except ValueError as err:
+        await ctx.send("Incorrect format, redo the command", delete_after=10)
+        return
+
+    # edits the contents of the embedded message
+    edit_embed = discord.Embed(
+        title=eventName,
+        description=eventDesc,
+        color=0x5CDBF0
+    )
+    edit_embed.add_field(name='Date: ', value=eventDate, inline=True)
+    edit_embed.add_field(name='Time: ', value=eventTime, inline=True)
+    edit_embed.add_field(name='Point of Contact: ', value=eventpoc, inline=False)
+    edit_embed.set_footer(text=ID)
+    await msg.edit(embed=edit_embed)
+
+    time.sleep(1)
+    await existing_channel.send(
+        existing_role.mention + '\nEvent time have been changed!', embed=edit_embed)
+    await ctx.send('Event time has been successfully changed', delete_after=20)
+
+
+@bot.command(name="changepoc", description="changes the point of contact of the event \n command is called by passing the unique 5-character code located in the specified "
+                                             "embedded message \n\n ex: ;changepoc 5_char_code")
+async def changepoc(ctx, ID: str):
+    channel = bot.get_channel(events_channel_id)
+    allmessages = await channel.history(limit=200).flatten()
+
+    def check(msg):
+        return msg.author == ctx.author and msg.channel == ctx.channel
+
+    # looks through the messages in the specified channel and looks for the message that has the
+    # desired ID
+    for msg in allmessages:
+        embeds = msg.embeds
+        if len(embeds) != 0:
+            embed = embeds[0]
+            footer = embed.footer.text
+        if footer == ID and msg.author == bot.user:
+            msgID = msg.id
+            eventName = embed.title
+            eventDesc = embed.description
+            query = {"_id": msgID}
+            msg_data = collection.find(query)
+
+            # looks for desired data in the database
+            for data in msg_data:
+                role_id = data["roleID"]
+                txtchannel_id = data["txtchannelID"]
+                existing_channel = discord.utils.get(ctx.guild.channels, id=txtchannel_id)
+                existing_role = discord.utils.get(ctx.guild.roles, id=role_id)
+
+            # gets the values from the desired fields
+            for field in embed.fields:
+                field_name = field.name.lower()
+                if field_name == "date:":
+                    eventDate = field.value
+                if field_name == "time:":
+                    eventTime = field.value
+                if field_name == "point of contact:":
+                    eventpoc = field.value
+            break
+
+    # prompts the user who called the command
+    try:
+        await ctx.send('Enter new point of contact of event:', delete_after=30)
+        eventpoc = await bot.wait_for("message", check=check, timeout=15)
+        eventpoc = eventpoc.content
+    except asyncio.TimeoutError:
+        await ctx.send("Sorry, you didn't reply within 15 seconds!", delete_after=10)
+        return
+
+    # edits the contents of the embedded message
+    edit_embed = discord.Embed(
+        title=eventName,
+        description=eventDesc,
+        color=0x5CDBF0
+    )
+    edit_embed.add_field(name='Date: ', value=eventDate, inline=True)
+    edit_embed.add_field(name='Time: ', value=eventTime, inline=True)
+    edit_embed.add_field(name='Point of Contact: ', value=eventpoc, inline=False)
+    edit_embed.set_footer(text=ID)
+    await msg.edit(embed=edit_embed)
+
+    time.sleep(1)
+    await existing_channel.send(
+        existing_role.mention + '\nEvent point of contact have been changed!', embed=edit_embed)
+    await ctx.send('Event point of contact has been successfully changed', delete_after=20)
+
+
+@bot.command(name="attendees", description="sends list of users who are confirmed for the specified event")
+async def attendees(ctx, ID: str):
+    attendees = ""
+    channel = bot.get_channel(events_channel_id)
+    allmessages = await channel.history(limit=200).flatten()
+    # looks through the messages in the specified channel and looks for the message that has the
+    # desired ID
+    for msg in allmessages:
+        embeds = msg.embeds
+        if len(embeds) != 0:
+            embed = embeds[0]
+            footer = embed.footer.text
+        if footer == ID and msg.author == bot.user:
+            reactions = msg.reactions
+            for reaction in reactions:
+                if reaction.emoji == "✅":
+                    users = await reaction.users().flatten()
+                    if (bot.user in users):
+                        users.remove(bot.user)
+                    for user in users:
+                        attendees += user.name + "\n"
+                        attendee_count_string = str(len(users))
+                        attendee_count = attendee_count_string + " person(s) going"
+                    attendee_embed = discord.Embed(
+                        title="Attendees",
+                        description=(attendees),
+                    )
+                    attendee_embed.set_footer(text=attendee_count)
+                    await ctx.send(embed=attendee_embed)
 
 
 @bot.event
