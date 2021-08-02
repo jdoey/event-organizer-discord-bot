@@ -5,7 +5,7 @@ Created using: Python and MongoDB
 
 Deployed using: Repl.it and UptimeRobot
 
-![image](https://user-images.githubusercontent.com/70018021/126856649-a446e761-2b6d-4e3f-b03f-59768053096a.png)
+![image](https://user-images.githubusercontent.com/70018021/127807801-32fb2e8d-f472-40f4-a85b-d67a596f9665.png)
 
 
 
@@ -42,11 +42,27 @@ Deployed using: Repl.it and UptimeRobot
      -deletes the specified event message as well as its corresponding text channel and role.
      -deletes the data entry of the message from the database.
   
-**;changeevent("new event name", new_event_date, "new_event_time", "new_point_of_contact", unique_5_character_embedded_message_code)**
+**;changeevent(unique_5_character_embedded_message_code)**
 
 
-     -edits the embedded message with the details in the arguments.
-     -changes the text channel name and role name to correspond with the new event name
+     -allows the user to edit the embedded message's event name.
+     -changes the text channel name and role name to correspond with the new event name.
+     
+**;changedesc(unique_5_character_embedded_message_code)**
+
+     -allows the user to edit the embedded message's event description.
+     
+**;changedate(unique_5_character_embedded_message_code)**
+
+     -allows the user to edit the embedded message's event date.
+     
+**;changetime(unique_5_character_embedded_message_code)**
+
+     -allows the user to edit the embedded message's event time. 
+     
+**;changepoc(unique_5_character_embedded_message_code)**
+
+     -allows the user to edit the embedded message's point of contact.  
     
   
 **events:**
